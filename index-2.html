@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FIELDR — Live Sports</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://npmcdn.com/parse/dist/parse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Barlow+Condensed:wght@600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body,#root{min-height:100vh;background:#07090f}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:#07090f}
+  ::-webkit-scrollbar-thumb{background:#1e2840;border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:#2e3d60}
+  input::placeholder{color:#3a4560}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .fade{animation:fadeUp .2s ease forwards}
+  .live-dot{animation:pulse 1.4s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ─── PARSE / BACK4APP ────────────────────────────────────────────────────────
+Parse.initialize("d47uLJzKJJ9BS7UpHfNFBmr3kqARVHwh77BIcuPL","jJsCBy6UZCSdDJNpOumU4xNszGerrMpvYKmraDl4");
+Parse.serverURL = "https://parseapi.back4app.com/";
+
+// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+const C = {
+  bg:"#07090f", s1:"#0b0f1a", s2:"#0f1422", s3:"#131929",
+  border:"#1a2236", borderB:"#222d48", borderHov:"#2e3d60",
+  text:"#c8d4ee", muted:"#3e4e70", dim:"#1a2236",
+  accent:"#3d7fff", accentB:"#2d6fee",
+  green:"#1db954", red:"#e8394a", orange:"#f5820d", gold:"#f0b429",
+  live:"#e8394a",
+};
+const FONTS = { body:"'Barlow',sans-serif", cond:"'Barlow Condensed',sans-serif" };
+
+const TC = {
+  ATL:"#E03A3E",BKN:"#1a1a1a",BOS:"#007A33",CHA:"#1D1160",CHI:"#CE1141",
+  CLE:"#860038",DAL:"#00538C",DEN:"#0E2240",DET:"#C8102E",GSW:"#1D428A",
+  HOU:"#CE1141",IND:"#002D62",LAC:"#C8102E",LAL:"#552583",MEM:"#5D76A9",
+  MIA:"#98002E",MIL:"#00471B",MIN:"#236192",NOP:"#0C2340",NYK:"#006BB6",
+  OKC:"#007AC1",ORL:"#0077C0",PHI:"#006BB6",PHX:"#1D1160",POR:"#E03A3E",
+  SAC:"#5A2D81",SAS:"#6e7070",TOR:"#CE1141",UTA:"#002B5C",WAS:"#002B5C",
+};
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const NBA_TEAMS = [
+  {abv:"ATL",name:"Atlanta Hawks",conf:"East",div:"Southeast",w:34,l:31,pct:".523",streak:"W1",l10:"5-5"},
+  {abv:"BKN",name:"Brooklyn Nets",conf:"East",div:"Atlantic",w:17,l:48,pct:".262",streak:"L4",l10:"2-8"},
+  {abv:"BOS",name:"Boston Celtics",conf:"East",div:"Atlantic",w:43,l:22,pct:".662",streak:"L1",l10:"6-4"},
+  {abv:"CHA",name:"Charlotte Hornets",conf:"East",div:"Southeast",w:33,l:33,pct:".500",streak:"W2",l10:"5-5"},
+  {abv:"CHI",name:"Chicago Bulls",conf:"East",div:"Central",w:27,l:38,pct:".415",streak:"W1",l10:"4-6"},
+  {abv:"CLE",name:"Cleveland Cavaliers",conf:"East",div:"Central",w:40,l:25,pct:".615",streak:"W1",l10:"5-5"},
+  {abv:"DAL",name:"Dallas Mavericks",conf:"West",div:"Southwest",w:21,l:44,pct:".323",streak:"L2",l10:"3-7"},
+  {abv:"DEN",name:"Denver Nuggets",conf:"West",div:"Northwest",w:39,l:26,pct:".600",streak:"L2",l10:"5-5"},
+  {abv:"DET",name:"Detroit Pistons",conf:"East",div:"Central",w:46,l:18,pct:".719",streak:"W3",l10:"7-3"},
+  {abv:"GSW",name:"Golden State Warriors",conf:"West",div:"Pacific",w:32,l:33,pct:".492",streak:"L1",l10:"4-6"},
+  {abv:"HOU",name:"Houston Rockets",conf:"West",div:"Southwest",w:40,l:24,pct:".625",streak:"W3",l10:"7-3"},
+  {abv:"IND",name:"Indiana Pacers",conf:"East",div:"Central",w:15,l:50,pct:".231",streak:"L3",l10:"2-8"},
+  {abv:"LAC",name:"LA Clippers",conf:"West",div:"Pacific",w:32,l:32,pct:".500",streak:"L3",l10:"4-6"},
+  {abv:"LAL",name:"Los Angeles Lakers",conf:"West",div:"Pacific",w:40,l:25,pct:".615",streak:"W1",l10:"6-4"},
+  {abv:"MEM",name:"Memphis Grizzlies",conf:"West",div:"Southwest",w:23,l:41,pct:".359",streak:"L1",l10:"3-7"},
+  {abv:"MIA",name:"Miami Heat",conf:"East",div:"Southeast",w:37,l:29,pct:".561",streak:"W4",l10:"8-2"},
+  {abv:"MIL",name:"Milwaukee Bucks",conf:"East",div:"Central",w:27,l:37,pct:".422",streak:"L2",l10:"4-6"},
+  {abv:"MIN",name:"Minnesota Timberwolves",conf:"West",div:"Northwest",w:40,l:25,pct:".615",streak:"L1",l10:"5-5"},
+  {abv:"NOP",name:"New Orleans Pelicans",conf:"West",div:"Southwest",w:21,l:45,pct:".318",streak:"L5",l10:"2-8"},
+  {abv:"NYK",name:"New York Knicks",conf:"East",div:"Atlantic",w:41,l:25,pct:".621",streak:"W2",l10:"7-3"},
+  {abv:"OKC",name:"Oklahoma City Thunder",conf:"West",div:"Northwest",w:51,l:15,pct:".773",streak:"W6",l10:"9-1"},
+  {abv:"ORL",name:"Orlando Magic",conf:"East",div:"Southeast",w:35,l:28,pct:".556",streak:"W1",l10:"6-4"},
+  {abv:"PHI",name:"Philadelphia 76ers",conf:"East",div:"Atlantic",w:35,l:30,pct:".538",streak:"W2",l10:"5-5"},
+  {abv:"PHX",name:"Phoenix Suns",conf:"West",div:"Pacific",w:38,l:27,pct:".585",streak:"W2",l10:"6-4"},
+  {abv:"POR",name:"Portland Trail Blazers",conf:"West",div:"Northwest",w:31,l:35,pct:".470",streak:"W1",l10:"5-5"},
+  {abv:"SAC",name:"Sacramento Kings",conf:"West",div:"Pacific",w:16,l:50,pct:".242",streak:"W1",l10:"3-7"},
+  {abv:"SAS",name:"San Antonio Spurs",conf:"West",div:"Southwest",w:48,l:17,pct:".738",streak:"W2",l10:"8-2"},
+  {abv:"TOR",name:"Toronto Raptors",conf:"East",div:"Atlantic",w:36,l:28,pct:".563",streak:"L2",l10:"4-6"},
+  {abv:"UTA",name:"Utah Jazz",conf:"West",div:"Northwest",w:20,l:45,pct:".308",streak:"W1",l10:"3-7"},
+  {abv:"WAS",name:"Washington Wizards",conf:"East",div:"Southeast",w:16,l:48,pct:".250",streak:"L3",l10:"2-8"},
+];
+
+const PLAYERS = [
+  {id:"sga",name:"Shai Gilgeous-Alexander",team:"OKC",teamName:"Oklahoma City Thunder",pos:"PG",age:27,ht:"6-6",wt:"195",pts:32.4,reb:5.5,ast:6.1,stl:1.8,blk:0.9,fg:54.2,fg3:37.8,ft:88.4,min:34.8,pm:"+11.2",gp:62,awards:["2025 MVP","4× All-Star","2× All-NBA 1st"],contract:{total:"$330M",aav:"$66M",type:"Supermax",yrs:[{y:"2025-26",s:"$41.8M",t:"Supermax"},{y:"2026-27",s:"$45.1M",t:"Supermax"},{y:"2027-28",s:"$48.3M",t:"Supermax"},{y:"2028-29",s:"$51.6M",t:"Player Option"}]},injuries:[{d:"Dec 2022",desc:"Right ankle sprain",gm:5},{d:"Nov 2021",desc:"Left knee contusion",gm:2}],seasons:[{yr:"25-26",gp:62,pts:32.4,reb:5.5,ast:6.1,fg:54.2,fg3:37.8,ft:88.4,per:31.8,bpm:9.8},{yr:"24-25",gp:68,pts:30.1,reb:5.2,ast:6.4,fg:53.1,fg3:38.6,ft:87.8,per:29.4,bpm:9.1},{yr:"23-24",gp:68,pts:30.1,reb:5.3,ast:6.1,fg:53.1,fg3:37.8,ft:87.6,per:28.4,bpm:8.4},{yr:"22-23",gp:68,pts:31.4,reb:5.1,ast:5.5,fg:53.0,fg3:36.6,ft:85.6,per:27.1,bpm:7.6},{yr:"21-22",gp:56,pts:24.5,reb:5.3,ast:5.9,fg:51.5,fg3:30.7,ft:84.9,per:22.4,bpm:5.2},{yr:"20-21",gp:35,pts:23.7,reb:4.9,ast:5.9,fg:50.2,fg3:30.8,ft:82.5,per:20.8,bpm:4.2},{yr:"19-20",gp:67,pts:23.7,reb:5.3,ast:5.3,fg:50.3,fg3:32.0,ft:83.5,per:21.4,bpm:3.8},{yr:"18-19",gp:63,pts:10.8,reb:3.0,ast:3.3,fg:49.8,fg3:29.6,ft:81.0,per:15.4,bpm:1.4}],schedule:[{d:"Mar 13",opp:"BOS",home:true,t:"9:30 PM"},{d:"Mar 15",opp:"SAS",home:false,t:"7:00 PM"},{d:"Mar 17",opp:"DEN",home:true,t:"9:00 PM"},{d:"Mar 21",opp:"HOU",home:true,t:"8:00 PM"},{d:"Mar 25",opp:"MIN",home:true,t:"9:00 PM"},{d:"Mar 27",opp:"DET",home:false,t:"7:00 PM"},{d:"Mar 29",opp:"CLE",home:true,t:"9:30 PM"},{d:"Apr 1",opp:"NYK",home:false,t:"7:30 PM"},{d:"Apr 3",opp:"LAL",home:true,t:"10:00 PM"},{d:"Apr 7",opp:"DAL",home:true,t:"9:30 PM"}]},
+  {id:"wemby",name:"Victor Wembanyama",team:"SAS",teamName:"San Antonio Spurs",pos:"C",age:21,ht:"7-4",wt:"210",pts:28.1,reb:12.3,ast:3.8,stl:1.4,blk:3.6,fg:51.7,fg3:32.4,ft:78.4,min:32.8,pm:"+6.8",gp:60,awards:["2024 ROY","2025 All-Star","2025 DPOY Finalist","2025 All-NBA 1st"],contract:{total:"$55M",aav:"$13.8M",type:"Rookie Scale",yrs:[{y:"2024-25",s:"$12.8M",t:"Rookie Scale"},{y:"2025-26",s:"$14.8M",t:"Team Option"},{y:"2026-27",s:"$15.4M",t:"Team Option"}]},injuries:[{d:"Jan 2025",desc:"Left ankle sprain (Grade 1)",gm:4},{d:"Nov 2024",desc:"Right shoulder contusion",gm:2}],seasons:[{yr:"25-26",gp:60,pts:28.1,reb:12.3,ast:3.8,fg:51.7,fg3:32.4,ft:78.4,per:29.8,bpm:7.2},{yr:"24-25",gp:71,pts:22.9,reb:10.6,ast:3.9,fg:48.9,fg3:31.8,ft:74.5,per:26.4,bpm:5.8},{yr:"23-24",gp:71,pts:21.4,reb:10.6,ast:3.9,fg:48.0,fg3:32.5,ft:75.0,per:24.4,bpm:4.9}],schedule:[{d:"Mar 13",opp:"DEN",home:false,t:"9:00 PM"},{d:"Mar 15",opp:"OKC",home:true,t:"7:00 PM"},{d:"Mar 19",opp:"HOU",home:true,t:"8:30 PM"},{d:"Mar 21",opp:"DAL",home:true,t:"8:30 PM"},{d:"Mar 26",opp:"GSW",home:true,t:"8:30 PM"},{d:"Mar 30",opp:"LAC",home:true,t:"7:00 PM"},{d:"Apr 6",opp:"MIA",home:true,t:"8:00 PM"},{d:"Apr 10",opp:"CHI",home:true,t:"8:00 PM"}]},
+  {id:"kyrie",name:"Kyrie Irving",team:"DAL",teamName:"Dallas Mavericks",pos:"PG",age:33,ht:"6-2",wt:"195",pts:25.1,reb:5.0,ast:5.8,stl:1.1,blk:0.4,fg:49.8,fg3:38.6,ft:87.1,min:34.2,pm:"-4.1",gp:54,awards:["2016 Champion","2016 Finals MVP","8× All-Star","2012 ROY"],contract:{total:"$97M",aav:"$48.6M",type:"Player Option",yrs:[{y:"2025-26",s:"$48.6M",t:"Player Option"},{y:"2026-27",s:"$48.6M",t:"Vesting Option"}]},injuries:[{d:"Oct 2023",desc:"Left knee – ACL tear",gm:0},{d:"Jan 2023",desc:"Right foot facial fracture",gm:11},{d:"Feb 2020",desc:"Right shoulder labrum surgery",gm:68}],seasons:[{yr:"25-26",gp:54,pts:25.1,reb:5.0,ast:5.8,fg:49.8,fg3:38.6,ft:87.1,per:21.4,bpm:1.8},{yr:"24-25",gp:68,pts:29.3,reb:5.1,ast:6.4,fg:51.6,fg3:40.1,ft:86.2,per:24.1,bpm:4.1},{yr:"23-24",gp:60,pts:28.9,reb:4.9,ast:5.8,fg:49.6,fg3:38.8,ft:85.4,per:22.8,bpm:2.9},{yr:"22-23",gp:29,pts:30.6,reb:5.2,ast:5.7,fg:52.4,fg3:41.4,ft:86.1,per:25.2,bpm:4.8},{yr:"20-21",gp:54,pts:26.9,reb:5.2,ast:6.0,fg:52.3,fg3:40.2,ft:86.9,per:24.0,bpm:4.2},{yr:"18-19",gp:60,pts:23.8,reb:4.9,ast:6.9,fg:49.5,fg3:40.1,ft:87.4,per:22.1,bpm:3.5},{yr:"16-17",gp:72,pts:25.2,reb:3.2,ast:5.8,fg:47.3,fg3:40.1,ft:90.2,per:21.4,bpm:3.0},{yr:"15-16",gp:53,pts:19.6,reb:3.2,ast:5.8,fg:46.6,fg3:32.1,ft:87.3,per:19.1,bpm:2.0}],schedule:[{d:"Mar 13",opp:"MEM",home:true,t:"8:00 PM"},{d:"Mar 17",opp:"PHX",home:true,t:"8:30 PM"},{d:"Mar 21",opp:"SAS",home:false,t:"8:30 PM"},{d:"Mar 24",opp:"HOU",home:true,t:"8:00 PM"},{d:"Mar 28",opp:"SAC",home:false,t:"10:00 PM"},{d:"Apr 1",opp:"DET",home:true,t:"8:00 PM"},{d:"Apr 5",opp:"MIL",home:false,t:"7:30 PM"},{d:"Apr 9",opp:"BOS",home:true,t:"8:30 PM"}]},
+  {id:"lebron",name:"LeBron James",team:"LAL",teamName:"Los Angeles Lakers",pos:"SF",age:40,ht:"6-9",wt:"250",pts:24.6,reb:7.9,ast:8.4,stl:1.2,blk:0.5,fg:54.1,fg3:38.9,ft:74.2,min:34.2,pm:"+3.1",gp:62,awards:["4× Champion","4× Finals MVP","4× MVP","21× All-Star","All-Time Scoring Leader"],contract:{total:"$104M",aav:"$52M",type:"2-Year Extension",yrs:[{y:"2025-26",s:"$51.4M",t:"Player Option"},{y:"2026-27",s:"$52.6M",t:"Player Option"}]},injuries:[{d:"Mar 2023",desc:"Right foot – stress fracture",gm:26},{d:"Feb 2021",desc:"Right ankle sprain",gm:20},{d:"Dec 2018",desc:"Left groin strain",gm:17}],seasons:[{yr:"25-26",gp:62,pts:24.6,reb:7.9,ast:8.4,fg:54.1,fg3:38.9,ft:74.2,per:24.8,bpm:5.1},{yr:"24-25",gp:71,pts:23.7,reb:8.3,ast:8.0,fg:52.2,fg3:36.8,ft:72.8,per:24.1,bpm:4.8},{yr:"23-24",gp:71,pts:25.7,reb:7.3,ast:8.3,fg:54.0,fg3:41.0,ft:75.0,per:24.4,bpm:5.2},{yr:"22-23",gp:55,pts:28.9,reb:8.3,ast:6.8,fg:50.0,fg3:32.1,ft:76.8,per:24.8,bpm:5.0},{yr:"21-22",gp:56,pts:30.3,reb:8.2,ast:6.2,fg:52.4,fg3:35.9,ft:75.6,per:26.4,bpm:6.3},{yr:"19-20",gp:67,pts:25.3,reb:7.8,ast:10.2,fg:49.3,fg3:34.8,ft:69.4,per:25.8,bpm:6.0},{yr:"16-17",gp:74,pts:26.4,reb:8.6,ast:8.7,fg:54.8,fg3:36.3,ft:67.4,per:27.1,bpm:6.6},{yr:"12-13",gp:76,pts:26.8,reb:8.0,ast:7.3,fg:56.5,fg3:40.6,ft:75.3,per:31.6,bpm:10.0}],schedule:[{d:"Mar 15",opp:"DAL",home:true,t:"10:00 PM"},{d:"Mar 18",opp:"OKC",home:false,t:"9:30 PM"},{d:"Mar 21",opp:"PHX",home:true,t:"10:00 PM"},{d:"Mar 24",opp:"SAS",home:true,t:"10:00 PM"},{d:"Mar 28",opp:"DEN",home:false,t:"9:00 PM"},{d:"Apr 1",opp:"MIN",home:false,t:"8:00 PM"},{d:"Apr 5",opp:"GSW",home:true,t:"10:00 PM"},{d:"Apr 9",opp:"SAC",home:false,t:"10:00 PM"}]},
+  {id:"giannis",name:"Giannis Antetokounmpo",team:"MIL",teamName:"Milwaukee Bucks",pos:"PF",age:30,ht:"6-11",wt:"243",pts:29.7,reb:11.8,ast:5.9,stl:1.1,blk:1.2,fg:56.8,fg3:28.4,ft:65.2,min:33.8,pm:"-1.2",gp:60,awards:["2021 Champion","2× MVP","2× DPOY","13× All-Star","2021 Finals MVP"],contract:{total:"$228M",aav:"$45.6M",type:"Supermax",yrs:[{y:"2025-26",s:"$48.8M",t:"Supermax"},{y:"2026-27",s:"$52.8M",t:"Supermax"},{y:"2027-28",s:"$56.8M",t:"Player Option"}]},injuries:[{d:"Apr 2021",desc:"Left knee – lateral meniscus tear",gm:5},{d:"Feb 2023",desc:"Right wrist – contusion",gm:3}],seasons:[{yr:"25-26",gp:60,pts:29.7,reb:11.8,ast:5.9,fg:56.8,fg3:28.4,ft:65.2,per:29.4,bpm:7.8},{yr:"24-25",gp:64,pts:30.4,reb:11.5,ast:6.5,fg:61.0,fg3:27.2,ft:64.5,per:30.1,bpm:8.4},{yr:"23-24",gp:73,pts:30.4,reb:11.5,ast:6.5,fg:61.0,fg3:27.4,ft:64.5,per:30.1,bpm:8.4},{yr:"22-23",gp:63,pts:31.1,reb:11.8,ast:5.7,fg:55.3,fg3:27.5,ft:64.5,per:29.8,bpm:8.4},{yr:"21-22",gp:67,pts:29.9,reb:11.6,ast:5.8,fg:55.3,fg3:29.3,ft:72.2,per:29.1,bpm:7.6},{yr:"20-21",gp:61,pts:28.1,reb:11.0,ast:5.9,fg:56.9,fg3:30.4,ft:68.5,per:28.3,bpm:8.5},{yr:"18-19",gp:72,pts:27.7,reb:12.5,ast:5.9,fg:57.8,fg3:25.6,ft:72.9,per:30.9,bpm:9.1},{yr:"16-17",gp:80,pts:22.9,reb:8.8,ast:5.4,fg:55.2,fg3:27.2,ft:77.0,per:26.4,bpm:6.2}],schedule:[{d:"Mar 14",opp:"BOS",home:false,t:"7:30 PM"},{d:"Mar 17",opp:"NYK",home:true,t:"8:00 PM"},{d:"Mar 20",opp:"DET",home:false,t:"7:00 PM"},{d:"Mar 23",opp:"MIA",home:true,t:"8:00 PM"},{d:"Mar 27",opp:"ATL",home:false,t:"7:30 PM"},{d:"Apr 1",opp:"CLE",home:true,t:"8:00 PM"},{d:"Apr 5",opp:"DAL",home:true,t:"7:30 PM"}]},
+  {id:"jokic",name:"Nikola Jokic",team:"DEN",teamName:"Denver Nuggets",pos:"C",age:30,ht:"6-11",wt:"284",pts:27.3,reb:12.9,ast:9.7,stl:1.4,blk:0.8,fg:57.8,fg3:34.2,ft:81.4,min:34.8,pm:"+5.2",gp:62,awards:["2023 Champion","2023 Finals MVP","3× MVP","6× All-Star","2× All-NBA 1st"],contract:{total:"$272M",aav:"$54.4M",type:"Supermax",yrs:[{y:"2025-26",s:"$52.1M",t:"Supermax"},{y:"2026-27",s:"$56.1M",t:"Supermax"},{y:"2027-28",s:"$60.1M",t:"Player Option"}]},injuries:[{d:"May 2024",desc:"Right calf strain",gm:2}],seasons:[{yr:"25-26",gp:62,pts:27.3,reb:12.9,ast:9.7,fg:57.8,fg3:34.2,ft:81.4,per:32.1,bpm:9.4},{yr:"24-25",gp:79,pts:29.6,reb:13.0,ast:10.2,fg:59.0,fg3:35.9,ft:83.2,per:33.4,bpm:11.2},{yr:"23-24",gp:79,pts:26.4,reb:12.4,ast:9.0,fg:58.3,fg3:35.9,ft:81.7,per:31.3,bpm:10.2},{yr:"22-23",gp:69,pts:24.5,reb:11.8,ast:9.8,fg:63.2,fg3:38.3,ft:82.4,per:31.6,bpm:10.8},{yr:"21-22",gp:74,pts:27.1,reb:13.8,ast:7.9,fg:58.3,fg3:33.7,ft:81.0,per:31.8,bpm:11.0},{yr:"20-21",gp:72,pts:26.4,reb:10.8,ast:8.3,fg:56.6,fg3:38.8,ft:86.8,per:31.3,bpm:9.5},{yr:"18-19",gp:80,pts:20.2,reb:10.2,ast:6.9,fg:51.1,fg3:30.7,ft:80.8,per:26.3,bpm:7.1},{yr:"15-16",gp:82,pts:10.0,reb:7.0,ast:2.4,fg:51.2,fg3:0,ft:63.1,per:18.1,bpm:2.8}],schedule:[{d:"Mar 13",opp:"SAS",home:true,t:"9:00 PM"},{d:"Mar 17",opp:"OKC",home:false,t:"9:00 PM"},{d:"Mar 19",opp:"DAL",home:true,t:"9:00 PM"},{d:"Mar 24",opp:"LAL",home:true,t:"10:00 PM"},{d:"Mar 28",opp:"MIN",home:false,t:"8:00 PM"},{d:"Apr 3",opp:"HOU",home:false,t:"8:00 PM"},{d:"Apr 7",opp:"PHX",home:true,t:"9:30 PM"}]},
+];
+
+const TODAY_GAMES = [
+  {id:"g1",status:"final",away:"BOS",home:"SAS",awayS:116,homeS:125,awayR:"L",homeR:"W",hasBox:true},
+  {id:"g2",status:"final",away:"MIN",home:"LAL",awayS:106,homeS:120,awayR:"L",homeR:"W"},
+  {id:"g3",status:"final",away:"WAS",home:"MIA",awayS:129,homeS:150,awayR:"L",homeR:"W"},
+  {id:"g4",status:"final",away:"TOR",home:"HOU",awayS:99,homeS:113,awayR:"L",homeR:"W"},
+  {id:"g5",status:"final",away:"DAL",home:"ATL",awayS:112,homeS:124,awayR:"L",homeR:"W"},
+  {id:"g6",status:"final",away:"PHX",home:"MIL",awayS:129,homeS:114,awayR:"W",homeR:"L"},
+  {id:"g7",status:"final",away:"IND",home:"SAC",awayS:109,homeS:114,awayR:"L",homeR:"W"},
+  {id:"g8",status:"final",away:"CHI",home:"GSW",awayS:130,homeS:124,awayR:"W",homeR:"L"},
+  {id:"g9",status:"upcoming",away:"CLE",home:"ORL",awayP:59.4,homeP:40.6,t:"7:30 PM"},
+  {id:"g10",status:"upcoming",away:"TOR",home:"NOP",awayP:55.6,homeP:44.4,t:"8:00 PM"},
+  {id:"g11",status:"upcoming",away:"NYK",home:"UTA",awayP:88.9,homeP:11.1,t:"9:00 PM"},
+  {id:"g12",status:"upcoming",away:"HOU",home:"DEN",awayP:28.6,homeP:71.4,t:"10:00 PM"},
+  {id:"g13",status:"upcoming",away:"MIN",home:"LAC",awayP:47.4,homeP:52.6,t:"10:30 PM"},
+];
+
+const BOX_SAS_BOS = {
+  away:{abv:"BOS",name:"Boston Celtics",score:116,q:[31,27,32,26]},
+  home:{abv:"SAS",name:"San Antonio Spurs",score:125,q:[29,29,39,28]},
+  awayPlayers:[
+    {n:"Derrick White",pos:"SG",min:36,pts:34,reb:5,ast:7,stl:0,blk:1,to:1,fg:"11/22",fg3:"3/11",ft:"9/11",pm:"-14"},
+    {n:"Jayson Tatum",pos:"SF",min:36,pts:24,reb:5,ast:2,stl:2,blk:0,to:1,fg:"10/24",fg3:"4/14",ft:"0/0",pm:"-1"},
+    {n:"Ron Harper Jr.",pos:"SF",min:26,pts:22,reb:3,ast:2,stl:0,blk:0,to:0,fg:"8/11",fg3:"6/9",ft:"0/0",pm:"-12"},
+    {n:"Sam Hauser",pos:"SF",min:28,pts:11,reb:7,ast:3,stl:2,blk:0,to:0,fg:"4/10",fg3:"3/8",ft:"0/0",pm:"-9"},
+    {n:"Jaylen Brown",pos:"SG",min:30,pts:8,reb:2,ast:7,stl:1,blk:0,to:2,fg:"4/8",fg3:"0/0",ft:"0/0",pm:"+1"},
+    {n:"Baylor Scheierman",pos:"SG",min:22,pts:6,reb:6,ast:3,stl:0,blk:0,to:2,fg:"2/6",fg3:"2/5",ft:"0/0",pm:"-10"},
+    {n:"Neemias Queta",pos:"C",min:16,pts:5,reb:4,ast:1,stl:0,blk:1,to:0,fg:"1/3",fg3:"0/0",ft:"3/4",pm:"-10"},
+    {n:"Hugo Gonzalez",pos:"PG",min:10,pts:2,reb:5,ast:0,stl:0,blk:2,to:1,fg:"1/2",fg3:"0/1",ft:"0/0",pm:"+2"},
+  ],
+  homePlayers:[
+    {n:"Victor Wembanyama",pos:"C",min:34,pts:39,reb:11,ast:3,stl:1,blk:2,to:6,fg:"11/20",fg3:"8/15",ft:"9/12",pm:"+5",dd:true},
+    {n:"De'Aaron Fox",pos:"PG",min:36,pts:25,reb:3,ast:9,stl:1,blk:0,to:1,fg:"11/14",fg3:"2/3",ft:"1/3",pm:"+2"},
+    {n:"Devin Vassell",pos:"SG",min:31,pts:14,reb:2,ast:2,stl:1,blk:0,to:0,fg:"5/9",fg3:"2/5",ft:"2/4",pm:"+13"},
+    {n:"Keldon Johnson",pos:"SF",min:28,pts:8,reb:6,ast:0,stl:0,blk:0,to:0,fg:"3/7",fg3:"2/4",ft:"0/0",pm:"+6"},
+    {n:"Carter Bryant",pos:"PF",min:22,pts:8,reb:0,ast:0,stl:0,blk:0,to:0,fg:"3/8",fg3:"2/7",ft:"0/0",pm:"-3"},
+    {n:"Luke Kornet",pos:"C",min:18,pts:4,reb:3,ast:2,stl:0,blk:0,to:0,fg:"1/4",fg3:"0/0",ft:"2/2",pm:"+6"},
+    {n:"Julian Champagnie",pos:"SF",min:16,pts:0,reb:5,ast:0,stl:0,blk:0,to:1,fg:"0/4",fg3:"0/4",ft:"0/0",pm:"0"},
+  ],
+  pbp:[
+    {t:"Q4 2:14",team:"SAS",txt:"Wembanyama — deep 3 from the logo 🔥","score":"SAS 118 · BOS 105"},
+    {t:"Q4 3:48",team:"BOS",txt:"Derrick White — drives baseline, tough layup","score":"SAS 115 · BOS 105"},
+    {t:"Q4 5:02",team:"SAS",txt:"De'Aaron Fox — floater in traffic","score":"SAS 115 · BOS 101"},
+    {t:"Q4 7:44",team:"SAS",txt:"Wembanyama — BLOCKS Tatum, pushes in transition","score":"SAS 112 · BOS 98"},
+    {t:"Q3 1:22",team:"SAS",txt:"Fox — drives for and-1 layup, crowd goes nuts","score":"SAS 95 · BOS 87"},
+    {t:"Q3 4:18",team:"SAS",txt:"Wembanyama — 3-pointer from logo area","score":"SAS 90 · BOS 85"},
+    {t:"Q3 5:44",team:"BOS",txt:"Jaylen Brown — flagrant tech foul called","score":"SAS 87 · BOS 85"},
+    {t:"Q2 0:00",txt:"Halftime — tied 58–58","score":"SAS 58 · BOS 58",neutral:true},
+    {t:"Q1 0:00",txt:"End of Q1","score":"BOS 31 · SAS 29",team:"BOS"},
+  ],
+};
+
+// ─── ATOMS ────────────────────────────────────────────────────────────────────
+const Badge = ({txt,color,bg})=>(
+  <span style={{background:bg||color+"22",color,border:`1px solid ${color}33`,borderRadius:4,padding:"2px 7px",fontSize:10,fontWeight:700,letterSpacing:.6,whiteSpace:"nowrap",fontFamily:FONTS.cond}}>
+    {txt}
+  </span>
+);
+
+const Logo = ({abv,size=32})=>{
+  const bg=TC[abv]||"#1e2840";
+  return (
+    <div style={{width:size,height:size,borderRadius:Math.round(size*.26),background:bg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 2px 10px ${bg}66`}}>
+      <span style={{fontSize:size*.29,fontWeight:900,color:"#fff",fontFamily:FONTS.cond,letterSpacing:"-.5px",lineHeight:1}}>{(abv||"??").slice(0,3)}</span>
+    </div>
+  );
+};
+
+const Divider = ()=><div style={{height:1,background:C.border,margin:"0 -1px"}}/>;
+
+// ─── SEARCH ───────────────────────────────────────────────────────────────────
+function Search({onSelect}){
+  const [q,setQ]=useState("");
+  const [open,setOpen]=useState(false);
+  const ref=useRef();
+  const hits=useMemo(()=>{
+    if(q.length<2) return [];
+    const lq=q.toLowerCase();
+    return [
+      ...PLAYERS.filter(p=>p.name.toLowerCase().includes(lq)||p.team.toLowerCase().includes(lq)).slice(0,5).map(p=>({type:"player",item:p})),
+      ...NBA_TEAMS.filter(t=>t.name.toLowerCase().includes(lq)||t.abv.toLowerCase().includes(lq)).slice(0,3).map(t=>({type:"team",item:t})),
+    ];
+  },[q]);
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  return (
+    <div ref={ref} style={{position:"relative",flex:1,maxWidth:400}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:C.s2,border:`1px solid ${C.border}`,borderRadius:9,padding:"7px 13px",transition:"border .15s"}}
+        onFocus={e=>e.currentTarget.style.borderColor=C.accent} onBlur={e=>e.currentTarget.style.borderColor=C.border}>
+        <span style={{fontSize:14,color:C.muted}}>⌕</span>
+        <input value={q} onChange={e=>{setQ(e.target.value);setOpen(true);}} placeholder="Players, teams…" style={{background:"none",border:"none",outline:"none",color:C.text,fontSize:13,width:"100%",fontFamily:FONTS.body}}/>
+        {q&&<button onClick={()=>{setQ("");setOpen(false);}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>×</button>}
+      </div>
+      {open&&hits.length>0&&(
+        <div style={{position:"absolute",top:"calc(100% + 5px)",left:0,right:0,background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,zIndex:999,overflow:"hidden",boxShadow:`0 20px 50px #00000099`}}>
+          {hits.map((h,i)=>(
+            <div key={i} onClick={()=>{onSelect(h);setQ("");setOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderBottom:i<hits.length-1?`1px solid ${C.border}`:"none",transition:"background .1s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.s3} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <Logo abv={h.type==="player"?h.item.team:h.item.abv} size={28}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600,color:C.text}}>{h.type==="player"?h.item.name:h.item.name}</div>
+                <div style={{fontSize:11,color:C.muted}}>{h.type==="player"?`${h.item.teamName} · ${h.item.pos}`:`${h.item.conf} · ${h.item.div}`}</div>
+              </div>
+              <span style={{fontSize:11,color:C.muted}}>{h.type==="player"?`${h.item.pts} PPG`:`${h.item.w}-${h.item.l}`}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SCORE TICKER ─────────────────────────────────────────────────────────────
+function Ticker({games,onGameClick}){
+  return (
+    <div style={{display:"flex",overflowX:"auto",background:C.s1,borderBottom:`1px solid ${C.border}`,scrollbarWidth:"none"}}>
+      {games.map((g,i)=>{
+        const fin=g.status==="final";
+        const awW=fin&&g.awayR==="W", hwW=fin&&g.homeR==="W";
+        return (
+          <div key={i} onClick={()=>fin&&g.hasBox&&onGameClick(g)} style={{minWidth:150,padding:"7px 12px",borderRight:`1px solid ${C.border}`,flexShrink:0,cursor:fin&&g.hasBox?"pointer":"default",transition:"background .12s"}}
+            onMouseEnter={e=>fin&&g.hasBox&&(e.currentTarget.style.background=C.s3)} onMouseLeave={e=>e.currentTarget.style.background=""}>
+            <div style={{fontSize:9,color:fin?C.muted:C.accent,fontWeight:700,letterSpacing:.8,marginBottom:3,fontFamily:FONTS.cond}}>{fin?"FINAL":g.t}</div>
+            {[{abv:g.away,s:g.awayS,p:g.awayP,w:awW},{abv:g.home,s:g.homeS,p:g.homeP,w:hwW}].map((row,j)=>(
+              <div key={j} style={{display:"flex",alignItems:"center",gap:6,marginBottom:j===0?2:0}}>
+                <Logo abv={row.abv} size={14}/>
+                <span style={{fontSize:11,fontWeight:row.w?700:400,color:row.w?"#fff":C.muted,flex:1,fontFamily:FONTS.cond}}>{row.abv}</span>
+                {fin?<span style={{fontSize:14,fontWeight:row.w?800:400,color:row.w?"#fff":C.muted,fontFamily:FONTS.cond}}>{row.s}</span>
+                :<span style={{fontSize:10,color:C.muted,fontFamily:FONTS.cond}}>{row.p?row.p+"%":""}</span>}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── SCORES PAGE ─────────────────────────────────────────────────────────────
+function ScoresPage({games,onGameClick}){
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      {games.map((g,i)=>{
+        const fin=g.status==="final";
+        const awW=fin&&g.awayR==="W", hwW=fin&&g.homeR==="W";
+        return (
+          <div key={i} onClick={()=>fin&&g.hasBox&&onGameClick(g)} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:"14px 16px",cursor:fin&&g.hasBox?"pointer":"default",transition:"all .14s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderHov;e.currentTarget.style.background=C.s3;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.s2;}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+              {fin?<Badge txt="FINAL" color={C.muted}/>:<Badge txt={g.t} color={C.accent}/>}
+              {fin&&g.hasBox&&<span style={{fontSize:10,color:C.accent,fontWeight:700,fontFamily:FONTS.cond}}>BOX SCORE ↗</span>}
+            </div>
+            {[{abv:fin?g.away:g.away,s:fin?g.awayS:null,p:!fin?g.awayP:null,w:awW},{abv:fin?g.home:g.home,s:fin?g.homeS:null,p:!fin?g.homeP:null,w:hwW}].map((row,j)=>(
+              <div key={j} style={{display:"flex",alignItems:"center",gap:10,marginBottom:j===0?8:0}}>
+                <Logo abv={row.abv} size={38}/>
+                <span style={{flex:1,fontSize:14,fontWeight:row.w?700:400,color:row.w?"#fff":"#4a5878"}}>{row.abv}</span>
+                {fin?<span style={{fontSize:28,fontWeight:row.w?900:400,color:row.w?"#fff":"#1e2840",fontFamily:FONTS.cond}}>{row.s}</span>
+                :<span style={{fontSize:13,color:C.muted,fontFamily:FONTS.cond}}>{row.p?row.p+"%":""}</span>}
+              </div>
+            ))}
+            {!fin&&g.awayP&&(
+              <div style={{marginTop:10,height:3,borderRadius:2,background:C.dim,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${g.awayP}%`,background:C.accent,borderRadius:2}}/>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── BOX SCORE MODAL ─────────────────────────────────────────────────────────
+function BoxModal({game,onClose}){
+  const [tab,setTab]=useState("box");
+  const bs=BOX_SAS_BOS;
+  const COLS=["MIN","PTS","REB","AST","STL","BLK","TO","FG","3PT","FT","+/-"];
+  const TeamTable=({players,teamAbv})=>(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",background:C.s1}}>
+        <Logo abv={teamAbv} size={22}/>
+        <span style={{fontSize:12,fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{teamAbv === "BOS" ? "Boston Celtics" : "San Antonio Spurs"}</span>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,whiteSpace:"nowrap"}}>
+          <thead>
+            <tr style={{background:C.s1,borderBottom:`1px solid ${C.border}`}}>
+              <th style={{padding:"7px 16px",textAlign:"left",color:C.muted,fontSize:10,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond}}>PLAYER</th>
+              {COLS.map(c=><th key={c} style={{padding:"7px 10px",textAlign:"center",color:C.muted,fontSize:10,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond}}>{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p,i)=>{
+              const pm=parseInt(p.pm);
+              return (
+                <tr key={i} style={{borderBottom:`1px solid ${C.border}11`,background:i%2?C.s1+"88":"transparent"}}>
+                  <td style={{padding:"8px 16px",whiteSpace:"nowrap"}}>
+                    <span style={{fontWeight:600,color:C.text}}>{p.n}</span>
+                    {p.dd&&<span style={{marginLeft:6,background:C.gold+"22",color:C.gold,borderRadius:3,padding:"1px 5px",fontSize:9,fontWeight:700,fontFamily:FONTS.cond}}>DD</span>}
+                    <span style={{marginLeft:6,fontSize:10,color:C.muted}}>{p.pos}</span>
+                  </td>
+                  {[p.min,<b style={{color:p.pts>=25?"#fff":C.text}}>{p.pts}</b>,p.reb,p.ast,p.stl,p.blk,p.to,p.fg,p.fg3,p.ft].map((v,j)=>(
+                    <td key={j} style={{padding:"8px 10px",textAlign:"center",color:C.text,fontFamily:FONTS.cond}}>{v}</td>
+                  ))}
+                  <td style={{padding:"8px 10px",textAlign:"center",fontWeight:700,fontFamily:FONTS.cond,color:pm>0?C.green:pm<0?C.red:C.muted}}>{p.pm}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000000bb",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:12}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:880,maxHeight:"92vh",overflow:"auto",display:"flex",flexDirection:"column"}}>
+        {/* Header */}
+        <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:C.s2,zIndex:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <Logo abv={bs.away.abv} size={36}/>
+              <div>
+                <div style={{fontSize:11,color:C.muted,fontFamily:FONTS.cond,fontWeight:700}}>AWAY</div>
+                <div style={{fontSize:32,fontWeight:900,color:bs.away.score<bs.home.score?C.muted:"#fff",fontFamily:FONTS.cond}}>{bs.away.score}</div>
+              </div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.muted,fontWeight:700,fontFamily:FONTS.cond}}>FINAL</div>
+              <div style={{display:"flex",gap:6,marginTop:4}}>
+                {bs.away.q.map((q,i)=>(
+                  <div key={i} style={{textAlign:"center",background:C.s1,borderRadius:5,padding:"3px 8px"}}>
+                    <div style={{fontSize:8,color:C.muted,fontFamily:FONTS.cond,fontWeight:700}}>Q{i+1}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{q}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{bs.home.q[i]}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:11,color:C.muted,fontFamily:FONTS.cond,fontWeight:700}}>HOME</div>
+                <div style={{fontSize:32,fontWeight:900,color:bs.home.score>bs.away.score?"#fff":C.muted,fontFamily:FONTS.cond}}>{bs.home.score}</div>
+              </div>
+              <Logo abv={bs.home.abv} size={36}/>
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:7,padding:"7px 12px",cursor:"pointer",fontSize:14}}>✕</button>
+        </div>
+        {/* Tabs */}
+        <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 18px",background:C.s2,position:"sticky",top:92,zIndex:9}}>
+          {["box","pbp"].map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{padding:"10px 16px",border:"none",background:"none",color:tab===t?"#fff":C.muted,fontWeight:tab===t?700:400,fontSize:13,cursor:"pointer",borderBottom:tab===t?`2px solid ${C.accent}`:"2px solid transparent",fontFamily:FONTS.body}}>
+              {t==="box"?"Box Score":"Play-by-Play"}
+            </button>
+          ))}
+        </div>
+        {tab==="box"&&(
+          <div style={{paddingBottom:20}}>
+            <TeamTable players={bs.awayPlayers} teamAbv={bs.away.abv}/>
+            <div style={{height:1,background:C.border,margin:"8px 0"}}/>
+            <TeamTable players={bs.homePlayers} teamAbv={bs.home.abv}/>
+          </div>
+        )}
+        {tab==="pbp"&&(
+          <div style={{padding:"12px 18px"}}>
+            {bs.pbp.map((p,i)=>(
+              <div key={i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:`1px solid ${C.border}11`,alignItems:"flex-start"}}>
+                <span style={{fontSize:11,color:C.muted,minWidth:68,fontWeight:700,fontFamily:FONTS.cond,paddingTop:1}}>{p.t}</span>
+                {p.team&&<Logo abv={p.team} size={18}/>}
+                {!p.team&&<div style={{width:18,flexShrink:0}}/>}
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,color:C.text,lineHeight:1.4}}>{p.txt}</div>
+                  <div style={{fontSize:11,color:C.accent,marginTop:2,fontWeight:700,fontFamily:FONTS.cond}}>{p.score}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PLAYER PROFILE ──────────────────────────────────────────────────────────
+function SparkBars({seasons,stat,max}){
+  const vals=seasons.map(r=>r[stat]||0);
+  const pk=max||Math.max(...vals,1);
+  return (
+    <div style={{display:"flex",gap:3,alignItems:"flex-end",height:36}}>
+      {vals.slice().reverse().map((v,i)=>{
+        const h=Math.max(3,(v/pk)*34);
+        const isCur=i===0;
+        return <div key={i} title={`${seasons[seasons.length-1-i].yr}: ${v.toFixed(1)}`} style={{flex:1,height:h,borderRadius:"2px 2px 0 0",background:isCur?C.accent:C.dim,transition:"background .15s",cursor:"default"}} onMouseEnter={e=>e.currentTarget.style.background=C.accent} onMouseLeave={e=>e.currentTarget.style.background=isCur?C.accent:C.dim}/>;
+      })}
+    </div>
+  );
+}
+
+function PlayerProfile({player,onBack,favorites,toggleFav}){
+  const [tab,setTab]=useState("overview");
+  const isFav=favorites.players.includes(player.id);
+  const tc=TC[player.team]||C.accent;
+  const cur=player.seasons[0];
+  const TABS=["overview","stats","advanced","contract","injuries","schedule"];
+
+  const pctColor=v=>v>=50?C.green:v>=44?C.text:C.red;
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg}}>
+      {/* Sub-header */}
+      <div style={{background:C.s1,borderBottom:`1px solid ${C.border}`,padding:"8px 20px",display:"flex",alignItems:"center",gap:8}}>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,fontFamily:FONTS.body,padding:"4px 8px",borderRadius:6,display:"flex",alignItems:"center",gap:5}} onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color=C.muted}>
+          ← Back
+        </button>
+        <span style={{color:C.muted}}>›</span>
+        <span style={{fontSize:12,color:C.muted}}>Players</span>
+        <span style={{color:C.muted}}>›</span>
+        <span style={{fontSize:12,color:C.text,fontWeight:600}}>{player.name}</span>
+      </div>
+
+      {/* Hero */}
+      <div style={{background:`linear-gradient(160deg,${tc}20 0%,transparent 60%)`,borderBottom:`1px solid ${C.border}`,padding:"24px 20px 0"}}>
+        <div style={{maxWidth:1100,margin:"0 auto"}}>
+          <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap",marginBottom:20}}>
+            {/* Avatar */}
+            <div style={{width:88,height:88,borderRadius:18,background:tc,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,fontWeight:900,color:"#fff",boxShadow:`0 6px 28px ${tc}55`,flexShrink:0,fontFamily:FONTS.cond}}>
+              {player.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+            </div>
+            <div style={{flex:1,minWidth:200}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5,flexWrap:"wrap"}}>
+                <h1 style={{fontSize:28,fontWeight:900,color:"#fff",letterSpacing:"-.5px",fontFamily:FONTS.cond,lineHeight:1}}>{player.name}</h1>
+                <Logo abv={player.team} size={28}/>
+                <button onClick={()=>toggleFav("player",player.id)} style={{marginLeft:4,background:isFav?"#f0b42922":"none",border:`1px solid ${isFav?"#f0b42944":C.border}`,color:isFav?C.gold:C.muted,borderRadius:7,padding:"5px 12px",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:FONTS.body}}>
+                  {isFav?"★ Following":"☆ Follow"}
+                </button>
+              </div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10,fontSize:12,color:C.muted}}>
+                <span>{player.pos} · {player.teamName}</span>
+                <span>Age {player.age}</span>
+                <span>{player.ht} · {player.wt} lbs</span>
+                <span>{player.gp} GP this season</span>
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {player.awards.map((a,i)=><span key={i} style={{background:C.gold+"18",color:C.gold,border:`1px solid ${C.gold}33`,borderRadius:4,padding:"2px 7px",fontSize:10,fontWeight:700,fontFamily:FONTS.cond}}>🏆 {a}</span>)}
+              </div>
+            </div>
+            {/* Key stats */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {[{l:"PTS",v:cur.pts,big:true},{l:"REB",v:cur.reb},{l:"AST",v:cur.ast},{l:"BLK",v:cur.blk},{l:"FG%",v:cur.fg+"%"}].map(s=>(
+                <div key={s.l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 10px",textAlign:"center",minWidth:64}}>
+                  <div style={{fontSize:s.big?22:18,fontWeight:900,color:s.big?"#fff":C.text,fontFamily:FONTS.cond}}>{typeof s.v==="number"?s.v.toFixed(1):s.v}</div>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:.8,marginTop:2,fontFamily:FONTS.cond}}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Sparklines */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:12,background:C.s2,border:`1px solid ${C.border}`,borderRadius:"10px 10px 0 0",padding:"12px 16px",marginTop:4}}>
+            {[{stat:"pts",label:"PTS"},{stat:"reb",label:"REB"},{stat:"ast",label:"AST"},{stat:"fg",label:"FG%"},{stat:"per",label:"PER",max:36},{stat:"bpm",label:"BPM",max:14}].map(s=>(
+              <div key={s.stat}>
+                <SparkBars seasons={player.seasons} stat={s.stat} max={s.max}/>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+                  <span style={{fontSize:9,color:C.muted,fontWeight:700,fontFamily:FONTS.cond,letterSpacing:.8}}>{s.label}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{(player.seasons[0][s.stat]||0).toFixed(1)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{borderBottom:`1px solid ${C.border}`,background:C.bg,position:"sticky",top:53,zIndex:50}}>
+        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",padding:"0 20px",overflowX:"auto",scrollbarWidth:"none"}}>
+          {TABS.map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{padding:"11px 16px",border:"none",background:"none",color:tab===t?"#fff":C.muted,fontSize:13,fontWeight:tab===t?700:400,cursor:"pointer",fontFamily:FONTS.body,borderBottom:tab===t?`2px solid ${tc}`:"2px solid transparent",transition:"all .14s",whiteSpace:"nowrap",textTransform:"capitalize"}}>
+              {t}
+              {t==="injuries"&&player.injuries.length>0&&<span style={{marginLeft:5,background:C.red+"33",color:C.red,borderRadius:8,padding:"1px 5px",fontSize:9,fontWeight:700}}>{player.injuries.length}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{maxWidth:1100,margin:"0 auto",padding:"20px"}} className="fade" key={`${player.id}-${tab}`}>
+
+        {tab==="overview"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:16}}>
+            <div>
+              {/* Season table (last 4) */}
+              <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16,marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <span style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:1.2,fontFamily:FONTS.cond}}>RECENT SEASONS</span>
+                  <button onClick={()=>setTab("stats")} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:FONTS.body}}>Full History →</button>
+                </div>
+                <MiniSeasonTable seasons={player.seasons.slice(0,4)}/>
+              </div>
+              {/* Splits */}
+              <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16}}>
+                <span style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:1.2,fontFamily:FONTS.cond,display:"block",marginBottom:12}}>2025–26 SPLITS</span>
+                <div style={{display:"grid",gridTemplateColumns:"80px repeat(3,1fr)",gap:0,fontSize:12}}>
+                  <div style={{gridColumn:"1/-1",display:"contents"}}>
+                    <span style={{padding:"4px 0",color:C.muted,fontSize:10,fontWeight:700,fontFamily:FONTS.cond}}/>
+                    {["PTS","REB","AST"].map(h=><span key={h} style={{textAlign:"center",fontSize:10,fontWeight:700,color:C.muted,fontFamily:FONTS.cond,padding:"4px 0",letterSpacing:.8}}>{h}</span>)}
+                  </div>
+                  {[{l:"Home",pts:cur.pts+0.8,reb:cur.reb+0.2,ast:cur.ast+0.4},{l:"Away",pts:cur.pts-0.8,reb:cur.reb-0.2,ast:cur.ast-0.4},{l:"Wins",pts:cur.pts+1.2,reb:cur.reb+0.5,ast:cur.ast+0.6},{l:"Losses",pts:cur.pts-1.2,reb:cur.reb-0.5,ast:cur.ast-0.6}].map((s,i)=>(
+                    <div key={i} style={{display:"contents"}}>
+                      <span style={{padding:"8px 0",fontSize:12,color:C.muted,fontWeight:600,borderBottom:`1px solid ${C.border}22`}}>{s.l}</span>
+                      {[s.pts,s.reb,s.ast].map((v,j)=><span key={j} style={{textAlign:"center",padding:"8px 0",fontFamily:FONTS.cond,fontWeight:j===0?700:400,color:j===0?C.text:C.text,borderBottom:`1px solid ${C.border}22`,fontSize:13}}>{v.toFixed(1)}</span>)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              {/* Contract quick view */}
+              <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16,marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <span style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:1.2,fontFamily:FONTS.cond}}>CONTRACT</span>
+                  <button onClick={()=>setTab("contract")} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:FONTS.body}}>Details →</button>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+                  {[["Total",player.contract.total],["AAV",player.contract.aav],["Type",player.contract.type],["Years",player.contract.yrs.length+" yrs"]].map(([l,v])=>(
+                    <div key={l} style={{background:C.s1,borderRadius:8,padding:"9px 10px"}}>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond,marginBottom:3}}>{l}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:C.text,fontFamily:FONTS.cond}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {player.contract.yrs.map((y,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderTop:`1px solid ${C.border}22`,fontSize:12}}>
+                    <span style={{color:C.muted,fontFamily:FONTS.cond}}>{y.y}</span>
+                    <span style={{fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{y.s}</span>
+                    <span style={{color:C.muted,fontFamily:FONTS.cond,fontSize:10}}>{y.t}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Next games */}
+              <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <span style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:1.2,fontFamily:FONTS.cond}}>UPCOMING</span>
+                  <button onClick={()=>setTab("schedule")} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:FONTS.body}}>Full →</button>
+                </div>
+                {player.schedule.slice(0,6).map((g,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:i<5?`1px solid ${C.border}22`:"none"}}>
+                    <span style={{fontSize:11,color:C.muted,minWidth:44,fontWeight:600,fontFamily:FONTS.cond}}>{g.d}</span>
+                    <Logo abv={g.opp} size={22}/>
+                    <span style={{flex:1,fontSize:12,color:C.text,fontFamily:FONTS.cond,fontWeight:600}}>vs {g.opp}</span>
+                    <span style={{fontSize:10,fontWeight:700,color:g.home?C.green:C.muted,fontFamily:FONTS.cond}}>{g.home?"H":"A"}</span>
+                    <span style={{fontSize:10,color:C.muted,fontFamily:FONTS.cond}}>{g.t}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab==="stats"&&(
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <div>
+                <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:2}}>Per-Game Statistics — {player.name}</h2>
+                <p style={{fontSize:11,color:C.muted}}>Regular season. Click column headers to sort.</p>
+              </div>
+            </div>
+            <FullSeasonTable seasons={player.seasons} tc={tc}/>
+          </div>
+        )}
+
+        {tab==="advanced"&&(
+          <div>
+            <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:4}}>Advanced Stats</h2>
+            <p style={{fontSize:11,color:C.muted,marginBottom:14}}>PER = Player Efficiency Rating · BPM = Box Plus/Minus (vs avg = 0) · WS = Win Shares</p>
+            <AdvancedTable seasons={player.seasons}/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginTop:16}}>
+              {[
+                {l:"Career Avg PER",v:(player.seasons.reduce((s,r)=>s+r.per,0)/player.seasons.length).toFixed(1),thresh:22,note:"League avg = 15.0"},
+                {l:"Career Avg BPM",v:(player.seasons.reduce((s,r)=>s+r.bpm,0)/player.seasons.length).toFixed(1),thresh:4,note:"League avg = 0.0"},
+                {l:"Peak Season PER",v:Math.max(...player.seasons.map(r=>r.per)).toFixed(1),thresh:28,note:player.seasons.find(r=>r.per===Math.max(...player.seasons.map(s=>s.per)))?.yr},
+              ].map((s,i)=>(
+                <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16}}>
+                  <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond,marginBottom:6}}>{s.l}</div>
+                  <div style={{fontSize:30,fontWeight:900,color:parseFloat(s.v)>=s.thresh?C.gold:C.text,fontFamily:FONTS.cond}}>{s.v}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:4}}>{s.note}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab==="contract"&&(
+          <div>
+            <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:4}}>Contract</h2>
+            <p style={{fontSize:11,color:C.muted,marginBottom:14}}>Salary figures based on Spotrac / Basketball Reference estimates.</p>
+            <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden",marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",borderBottom:`1px solid ${C.border}`}}>
+                {[["Type",player.contract.type],["Value",player.contract.total],["AAV",player.contract.aav],["Years",player.contract.yrs.length+" yrs"]].map(([l,v])=>(
+                  <div key={l} style={{padding:"16px",borderRight:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:1,fontFamily:FONTS.cond,marginBottom:4}}>{l}</div>
+                    <div style={{fontSize:17,fontWeight:800,color:C.text,fontFamily:FONTS.cond}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead>
+                  <tr style={{background:C.s1,borderBottom:`1px solid ${C.border}`}}>
+                    {["Season","Salary","Type"].map(h=><th key={h} style={{padding:"9px 16px",textAlign:"left",color:C.muted,fontWeight:700,fontSize:10,letterSpacing:.8,fontFamily:FONTS.cond}}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {player.contract.yrs.map((y,i)=>(
+                    <tr key={i} style={{borderBottom:`1px solid ${C.border}22`,background:i%2?C.s1+"88":"transparent"}}>
+                      <td style={{padding:"11px 16px",fontWeight:600,color:C.text,fontFamily:FONTS.cond}}>{y.y}</td>
+                      <td style={{padding:"11px 16px",fontWeight:700,color:"#fff",fontFamily:FONTS.cond}}>{y.s}</td>
+                      <td style={{padding:"11px 16px"}}><Badge txt={y.t} color={C.accent}/></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16}}>
+              <span style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:1.2,fontFamily:FONTS.cond,display:"block",marginBottom:10}}>SALARY CAP CONTEXT 2025–26</span>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                {[["NBA Cap","$140.6M"],["Tax Line","$170.8M"],["% of Cap",((parseFloat((player.contract.aav||"$0").replace(/[$M]/g,""))/140.6)*100).toFixed(1)+"%"]].map(([l,v])=>(
+                  <div key={l} style={{background:C.s1,borderRadius:8,padding:"12px"}}>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond,marginBottom:3}}>{l}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:C.text,fontFamily:FONTS.cond}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab==="injuries"&&(
+          <div>
+            <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:4}}>Injury History</h2>
+            <p style={{fontSize:11,color:C.muted,marginBottom:14}}>All reported injuries and games missed.</p>
+            {player.injuries.length===0
+              ?<div style={{textAlign:"center",padding:40,color:C.muted}}><div style={{fontSize:36,marginBottom:8}}>✅</div>No significant injury history</div>
+              :<div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden",marginBottom:14}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{background:C.s1,borderBottom:`1px solid ${C.border}`}}>
+                      {["Date","Injury","Games Missed"].map(h=><th key={h} style={{padding:"9px 16px",textAlign:"left",color:C.muted,fontWeight:700,fontSize:10,letterSpacing:.8,fontFamily:FONTS.cond}}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {player.injuries.map((inj,i)=>(
+                      <tr key={i} style={{borderBottom:`1px solid ${C.border}22`,background:i%2?C.s1+"88":"transparent"}}>
+                        <td style={{padding:"11px 16px",color:C.muted,fontFamily:FONTS.cond,fontWeight:600,whiteSpace:"nowrap"}}>{inj.d}</td>
+                        <td style={{padding:"11px 16px",color:C.text}}>{inj.desc}</td>
+                        <td style={{padding:"11px 16px"}}>
+                          <span style={{fontWeight:700,fontFamily:FONTS.cond,color:inj.gm>20?C.red:inj.gm>5?C.orange:C.green}}>{inj.gm} GP</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            }
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+              {[["Total Games Missed",player.injuries.reduce((s,i)=>s+i.gm,0)],["Incidents",player.injuries.length],["Avg per Injury",(player.injuries.reduce((s,i)=>s+i.gm,0)/Math.max(player.injuries.length,1)).toFixed(1)]].map(([l,v])=>(
+                <div key={l} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,padding:16}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond,marginBottom:4}}>{l}</div>
+                  <div style={{fontSize:28,fontWeight:900,color:C.text,fontFamily:FONTS.cond}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {tab==="schedule"&&(
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond}}>Rest of Season Schedule</h2>
+              <Badge txt={`${player.schedule.length} games`} color={C.accent}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:8}}>
+              {player.schedule.map((g,i)=>{
+                const oc=TC[g.opp]||"#333";
+                return (
+                  <div key={i} style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",transition:"all .13s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=oc+"88";e.currentTarget.style.background=C.s3;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.s2;}}>
+                    <div style={{textAlign:"center",minWidth:34}}>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:700,fontFamily:FONTS.cond,letterSpacing:.5}}>{g.d.split(" ")[0].toUpperCase()}</div>
+                      <div style={{fontSize:22,fontWeight:900,color:C.text,lineHeight:1,fontFamily:FONTS.cond}}>{g.d.split(" ")[1]}</div>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                        <Logo abv={g.opp} size={20}/>
+                        <span style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:FONTS.cond}}>{g.opp}</span>
+                        <span style={{fontSize:9,fontWeight:700,color:g.home?C.green:C.muted,fontFamily:FONTS.cond}}>{g.home?"HOME":"AWAY"}</span>
+                      </div>
+                      <div style={{fontSize:10,color:C.muted,fontFamily:FONTS.cond}}>{g.t} ET</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── SEASON TABLES ───────────────────────────────────────────────────────────
+function MiniSeasonTable({seasons}){
+  const cols=[{k:"yr",l:"Season"},{k:"gp",l:"G"},{k:"pts",l:"PTS"},{k:"reb",l:"REB"},{k:"ast",l:"AST"},{k:"fg",l:"FG%"},{k:"fg3",l:"3P%"}];
+  return (
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,whiteSpace:"nowrap"}}>
+        <thead><tr style={{borderBottom:`1px solid ${C.border}`}}>
+          {cols.map(c=><th key={c.k} style={{padding:"5px 10px",textAlign:c.k==="yr"?"left":"right",color:C.muted,fontSize:10,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond}}>{c.l}</th>)}
+        </tr></thead>
+        <tbody>
+          {seasons.map((row,i)=>(
+            <tr key={i} style={{borderBottom:`1px solid ${C.border}11`,background:i%2?C.s1+"66":"transparent"}}>
+              {cols.map(c=>{
+                const v=row[c.k];
+                const isPct=c.k==="fg"||c.k==="fg3";
+                const color=c.k==="pts"&&v>=28?"#fff":c.k==="pts"&&v>=22?C.text:isPct?v>=50?C.green:v>=40?C.text:C.red:C.text;
+                return <td key={c.k} style={{padding:"7px 10px",textAlign:c.k==="yr"?"left":"right",color,fontWeight:c.k==="yr"||c.k==="pts"?600:400,fontFamily:FONTS.cond,fontSize:13}}>
+                  {isPct?v+"%":typeof v==="number"?c.k==="gp"?v:v.toFixed(1):v}
+                </td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FullSeasonTable({seasons,tc}){
+  const [sortK,setSortK]=useState("yr");
+  const [sortD,setSortD]=useState(-1);
+  const cols=[
+    {k:"yr",l:"Season",al:"left"},{k:"gp",l:"G"},{k:"pts",l:"PTS"},{k:"reb",l:"REB"},
+    {k:"ast",l:"AST"},{k:"stl",l:"STL"},{k:"blk",l:"BLK"},{k:"fg",l:"FG%"},
+    {k:"fg3",l:"3P%"},{k:"ft",l:"FT%"},{k:"per",l:"PER"},{k:"bpm",l:"BPM"},
+  ];
+  const sorted=[...seasons].sort((a,b)=>{
+    const av=a[sortK],bv=b[sortK];
+    return sortD*(typeof av==="string"?(av<bv?-1:1):(av-bv));
+  });
+  const avg={yr:"Career avg",gp:Math.round(seasons.reduce((s,r)=>s+r.gp,0)/seasons.length)};
+  cols.slice(2).forEach(c=>{avg[c.k]=(seasons.reduce((s,r)=>s+(r[c.k]||0),0)/seasons.length);});
+  return (
+    <div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,whiteSpace:"nowrap"}}>
+        <thead><tr style={{background:C.s1,borderBottom:`1px solid ${C.border}`}}>
+          {cols.map(c=>(
+            <th key={c.k} onClick={()=>{setSortK(c.k);setSortD(d=>sortK===c.k?-d:-1);}} style={{padding:"9px 12px",textAlign:c.al||"right",color:sortK===c.k?tc:C.muted,fontWeight:700,fontSize:10,letterSpacing:.8,cursor:"pointer",fontFamily:FONTS.cond,userSelect:"none"}}>
+              {c.l}{sortK===c.k?sortD>0?" ↑":" ↓":""}
+            </th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {sorted.map((row,i)=>(
+            <tr key={i} style={{borderBottom:`1px solid ${C.border}22`,background:i%2?C.s1+"77":C.s2}} onMouseEnter={e=>e.currentTarget.style.background="#1a2440"} onMouseLeave={e=>e.currentTarget.style.background=i%2?C.s1+"77":C.s2}>
+              {cols.map(c=>{
+                const v=row[c.k];
+                const isPct=c.k==="fg"||c.k==="fg3"||c.k==="ft";
+                const isGold=c.k==="pts"&&v>=30||(c.k==="per"&&v>=28)||(c.k==="bpm"&&v>=8);
+                const isWhite=c.k==="pts"&&v>=24||(c.k==="reb"&&v>=10)||(c.k==="ast"&&v>=8);
+                const isRed=isPct&&v<38&&c.k==="fg";
+                const color=isGold?C.gold:isWhite?"#fff":isPct?(v>=(c.k==="fg"?50:c.k==="fg3"?38:85)?C.green:v>=(c.k==="fg"?44:c.k==="fg3"?33:75)?C.text:C.red):C.text;
+                return (
+                  <td key={c.k} style={{padding:"8px 12px",textAlign:c.al||"right",color,fontWeight:isGold||isWhite?700:400,fontFamily:FONTS.cond,fontSize:13}}>
+                    {c.k==="yr"?<span style={{fontWeight:600}}>{v}</span>
+                    :isPct?v.toFixed(1)+"%"
+                    :c.k==="gp"?v
+                    :typeof v==="number"?v.toFixed(1):v}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          <tr style={{background:"#1c2740",borderTop:`2px solid ${C.border}`}}>
+            {cols.map(c=>{
+              const v=avg[c.k];
+              const isPct=c.k==="fg"||c.k==="fg3"||c.k==="ft";
+              return <td key={c.k} style={{padding:"9px 12px",textAlign:c.al||"right",fontWeight:600,color:c.k==="yr"?C.gold:C.text,fontFamily:FONTS.cond,fontSize:13}}>
+                {c.k==="yr"?"Career avg":typeof v==="number"?c.k==="gp"?Math.round(v):isPct?v.toFixed(1)+"%":v.toFixed(1):"—"}
+              </td>;
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AdvancedTable({seasons}){
+  const cols=[{k:"yr",l:"Season",al:"left"},{k:"gp",l:"G"},{k:"pts",l:"PTS"},{k:"per",l:"PER"},{k:"bpm",l:"BPM"},{k:"fg",l:"FG%"},{k:"fg3",l:"3P%"},{k:"ft",l:"FT%"}];
+  return (
+    <div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,whiteSpace:"nowrap"}}>
+        <thead><tr style={{background:C.s1,borderBottom:`1px solid ${C.border}`}}>
+          {cols.map(c=><th key={c.k} style={{padding:"9px 12px",textAlign:c.al||"right",color:C.muted,fontWeight:700,fontSize:10,letterSpacing:.8,fontFamily:FONTS.cond}}>{c.l}</th>)}
+        </tr></thead>
+        <tbody>
+          {seasons.map((row,i)=>(
+            <tr key={i} style={{borderBottom:`1px solid ${C.border}22`,background:i%2?C.s1+"77":"transparent"}} onMouseEnter={e=>e.currentTarget.style.background="#1a2440"} onMouseLeave={e=>e.currentTarget.style.background=i%2?C.s1+"77":"transparent"}>
+              {cols.map(c=>{
+                const v=row[c.k];
+                const isPct=c.k==="fg"||c.k==="fg3"||c.k==="ft";
+                const color=(c.k==="per"&&v>=28)?C.gold:(c.k==="bpm"&&v>=8)?C.gold:isPct?(v>=(c.k==="fg"?50:38)?C.green:v>=(c.k==="fg"?44:33)?C.text:C.red):C.text;
+                return <td key={c.k} style={{padding:"8px 12px",textAlign:c.al||"right",color,fontWeight:color===C.gold?700:400,fontFamily:FONTS.cond,fontSize:13}}>
+                  {c.k==="yr"?<span style={{fontWeight:600}}>{v}</span>:isPct?v.toFixed(1)+"%":c.k==="gp"?v:typeof v==="number"?v.toFixed(1):v}
+                </td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── STANDINGS PAGE ───────────────────────────────────────────────────────────
+function StandingsPage({favorites,toggleFav}){
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      {["East","West"].map(conf=>{
+        const teams=[...NBA_TEAMS].filter(t=>t.conf===conf).sort((a,b)=>b.w-a.w);
+        return (
+          <div key={conf}>
+            <div style={{fontSize:11,fontWeight:800,color:C.accent,letterSpacing:2,marginBottom:10,fontFamily:FONTS.cond}}>{conf.toUpperCase()} CONFERENCE</div>
+            <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"24px 1fr 36px 36px 52px 52px 60px 36px",padding:"8px 14px",borderBottom:`1px solid ${C.border}`,background:C.s1}}>
+                {["#","TEAM","W","L","PCT","L10","STRK","★"].map(h=><span key={h} style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:.8,textAlign:h==="TEAM"?"left":"center",fontFamily:FONTS.cond}}>{h}</span>)}
+              </div>
+              {teams.map((t,i)=>{
+                const isFav=favorites.teams.includes(t.abv);
+                return (
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"24px 1fr 36px 36px 52px 52px 60px 36px",padding:"9px 14px",borderBottom:i<teams.length-1?`1px solid ${C.border}22`:"none",background:i===0?TC[t.abv]+"14":isFav?"#f0b42908":"transparent",transition:"background .12s",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=C.s3} onMouseLeave={e=>e.currentTarget.style.background=i===0?TC[t.abv]+"14":isFav?"#f0b42908":"transparent"}>
+                    <span style={{fontSize:11,color:i<6?C.accent:C.muted,fontWeight:700,textAlign:"center",fontFamily:FONTS.cond}}>{i+1}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <Logo abv={t.abv} size={20}/>
+                      <span style={{fontSize:12,color:i<6?"#c8d4ee":C.muted,fontWeight:i===0?700:400,fontFamily:FONTS.cond}}>{t.name}</span>
+                      {isFav&&<span style={{fontSize:10,color:C.gold}}>★</span>}
+                    </div>
+                    <span style={{fontSize:12,color:C.text,fontWeight:600,textAlign:"center",fontFamily:FONTS.cond}}>{t.w}</span>
+                    <span style={{fontSize:12,color:C.muted,textAlign:"center",fontFamily:FONTS.cond}}>{t.l}</span>
+                    <span style={{fontSize:11,color:C.muted,textAlign:"center",fontFamily:FONTS.cond}}>{t.pct}</span>
+                    <span style={{fontSize:11,color:C.muted,textAlign:"center",fontFamily:FONTS.cond}}>{t.l10}</span>
+                    <span style={{fontSize:11,fontWeight:700,textAlign:"center",fontFamily:FONTS.cond,color:t.streak.startsWith("W")?C.green:C.red}}>{t.streak}</span>
+                    <button onClick={e=>{e.stopPropagation();toggleFav("team",t.abv);}} style={{background:"none",border:"none",color:isFav?C.gold:C.muted,cursor:"pointer",fontSize:14,textAlign:"center",padding:0}}>{isFav?"★":"☆"}</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── PLAYERS LIST PAGE ────────────────────────────────────────────────────────
+function PlayersPage({onSelect,favorites,toggleFav}){
+  const [filter,setFilter]=useState("ALL");
+  const hits=filter==="ALL"?PLAYERS:PLAYERS.filter(p=>p.pos.includes(filter));
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond}}>Players</h2>
+        <div style={{display:"flex",gap:6,marginLeft:"auto",flexWrap:"wrap"}}>
+          {["ALL","PG","SG","SF","PF","C"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 13px",borderRadius:6,border:`1px solid ${filter===f?C.accent:C.border}`,background:filter===f?C.accent+"22":"none",color:filter===f?C.accent:C.muted,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:FONTS.cond}}>{f}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:11,overflow:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,whiteSpace:"nowrap"}}>
+          <thead style={{position:"sticky",top:0,background:C.s1,zIndex:1}}>
+            <tr style={{borderBottom:`1px solid ${C.border}`}}>
+              {["PLAYER","TEAM","POS","GP","PTS","REB","AST","STL","BLK","FG%","3P%","FT%","+/-",""].map((h,i)=>(
+                <th key={i} style={{padding:"10px 12px",textAlign:i<3?"left":"center",color:C.muted,fontSize:10,fontWeight:700,letterSpacing:.8,fontFamily:FONTS.cond}}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {hits.map((p,i)=>{
+              const isFav=favorites.players.includes(p.id);
+              return (
+                <tr key={i} style={{borderBottom:`1px solid ${C.border}22`,background:i%2?C.s1+"66":"transparent",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.s3} onMouseLeave={e=>e.currentTarget.style.background=i%2?C.s1+"66":"transparent"}
+                  onClick={()=>onSelect(p)}>
+                  <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      {isFav&&<span style={{color:C.gold,fontSize:11}}>★</span>}
+                      <span style={{fontWeight:600,color:C.text}}>{p.name}</span>
+                      {p.awards.length>0&&<span style={{fontSize:9,background:C.gold+"18",color:C.gold,borderRadius:3,padding:"1px 4px",fontWeight:700,fontFamily:FONTS.cond}}>🏆</span>}
+                    </div>
+                  </td>
+                  <td style={{padding:"9px 12px"}}><div style={{display:"flex",alignItems:"center",gap:5}}><Logo abv={p.team} size={18}/><span style={{color:C.muted,fontFamily:FONTS.cond}}>{p.team}</span></div></td>
+                  <td style={{padding:"9px 12px",color:C.muted,fontFamily:FONTS.cond}}>{p.pos}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",color:C.muted,fontFamily:FONTS.cond}}>{p.gp}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontWeight:700,fontFamily:FONTS.cond,color:p.pts>=28?C.gold:p.pts>=24?"#fff":C.text}}>{p.pts.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:C.text}}>{p.reb.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:C.text}}>{p.ast.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:C.muted}}>{p.stl.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:C.muted}}>{p.blk.toFixed(1)}</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:p.fg>=52?C.green:p.fg>=46?C.text:C.red}}>{p.fg}%</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:p.fg3>=40?C.green:p.fg3>=35?C.text:C.red}}>{p.fg3}%</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,color:C.muted}}>{p.ft}%</td>
+                  <td style={{padding:"9px 12px",textAlign:"center",fontFamily:FONTS.cond,fontWeight:700,color:parseFloat(p.pm)>5?C.green:parseFloat(p.pm)>0?"#86efac":parseFloat(p.pm)<-3?C.red:C.muted}}>{p.pm}</td>
+                  <td style={{padding:"9px 12px"}}>
+                    <button onClick={e=>{e.stopPropagation();toggleFav("player",p.id);}} style={{background:"none",border:`1px solid ${isFav?C.gold+"44":C.border}`,color:isFav?C.gold:C.muted,borderRadius:5,padding:"3px 9px",cursor:"pointer",fontSize:12}}>
+                      {isFav?"★":"☆"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN MODAL ─────────────────────────────────────────────────────────────
+function LoginModal({onLogin,onClose}){
+  const [mode,setMode]=useState("in");
+  const [form,setForm]=useState({email:"",pass:"",name:""});
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const go=async()=>{
+    if(!form.email||!form.pass){setErr("Please fill in all fields.");return;}
+    setErr(""); setLoading(true);
+    try {
+      if(mode==="up"){
+        const u=new Parse.User();
+        u.set("username",form.email);
+        u.set("password",form.pass);
+        u.set("email",form.email);
+        u.set("displayName",form.name||form.email.split("@")[0]);
+        await u.signUp();
+        onLogin({name:u.get("displayName"),email:form.email,parseUser:u});
+      } else {
+        const u=await Parse.User.logIn(form.email,form.pass);
+        onLogin({name:u.get("displayName")||u.get("username"),email:form.email,parseUser:u});
+      }
+    } catch(e){
+      setErr(e.message||"Something went wrong. Try again.");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:C.s2,border:`1px solid ${C.border}`,borderRadius:14,width:"100%",maxWidth:380,padding:28}}>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{fontSize:30,marginBottom:6}}>🏆</div>
+          <h2 style={{fontSize:22,fontWeight:900,color:"#fff",fontFamily:FONTS.cond}}>FIELDR</h2>
+          <p style={{fontSize:12,color:C.muted,marginTop:4}}>Save favorites · Follow players · Get alerts</p>
+        </div>
+        <div style={{display:"flex",background:C.s1,borderRadius:9,padding:4,marginBottom:18}}>
+          {[["in","Sign In"],["up","Create Account"]].map(([k,l])=>(
+            <button key={k} onClick={()=>{setMode(k);setErr("");}} style={{flex:1,padding:"7px",border:"none",borderRadius:6,background:mode===k?C.s2:"none",color:mode===k?"#fff":C.muted,fontWeight:mode===k?700:400,cursor:"pointer",fontSize:13,fontFamily:FONTS.body,transition:"all .14s"}}>{l}</button>
+          ))}
+        </div>
+        {mode==="up"&&<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Display Name" style={{width:"100%",background:C.s1,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:FONTS.body,outline:"none",marginBottom:8}}/>}
+        <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Email" type="email" style={{width:"100%",background:C.s1,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:FONTS.body,outline:"none",marginBottom:8}}/>
+        <input value={form.pass} onChange={e=>setForm({...form,pass:e.target.value})} placeholder="Password" type="password" onKeyDown={e=>e.key==="Enter"&&go()} style={{width:"100%",background:C.s1,border:`1px solid ${C.border}`,borderRadius:7,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:FONTS.body,outline:"none",marginBottom:err?8:14}}/>
+        {err&&<div style={{fontSize:12,color:C.red,marginBottom:10,padding:"6px 10px",background:C.red+"18",borderRadius:6,border:`1px solid ${C.red}33`}}>{err}</div>}
+        <button onClick={go} disabled={loading} style={{width:"100%",background:loading?C.muted:C.accent,border:"none",borderRadius:8,padding:"11px",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:FONTS.body,transition:"background .15s"}}>
+          {loading?"…":mode==="in"?"Sign In →":"Create Account →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROOT APP ─────────────────────────────────────────────────────────────────
+function App(){
+  const [page,setPage]=useState("scores");
+  const [user,setUser]=useState(null);
+  const [showLogin,setShowLogin]=useState(false);
+  const [activeBox,setActiveBox]=useState(null);
+  const [activePlayer,setActivePlayer]=useState(null);
+  const [favorites,setFavorites]=useState({teams:[],players:[]});
+  const [favLoading,setFavLoading]=useState(false);
+
+  // ── Restore session on load ──────────────────────────────────────────────
+  useEffect(()=>{
+    const current=Parse.User.current();
+    if(current){
+      setUser({name:current.get("displayName")||current.get("username"),email:current.get("email"),parseUser:current});
+      loadFavorites(current);
+    }
+  },[]);
+
+  // ── Load favorites from Back4App ─────────────────────────────────────────
+  const loadFavorites=async(parseUser)=>{
+    try {
+      const q=new Parse.Query("Favorites");
+      q.equalTo("user",parseUser);
+      const obj=await q.first();
+      if(obj){
+        setFavorites({
+          teams:obj.get("teams")||[],
+          players:obj.get("players")||[],
+        });
+      }
+    } catch(e){ console.warn("loadFavorites:",e); }
+  };
+
+  // ── Save favorites to Back4App ────────────────────────────────────────────
+  const saveFavorites=async(newFavs,parseUser)=>{
+    try {
+      const q=new Parse.Query("Favorites");
+      q.equalTo("user",parseUser);
+      let obj=await q.first();
+      if(!obj){
+        obj=new Parse.Object("Favorites");
+        obj.set("user",parseUser);
+        // Set ACL so only this user can read/write their own favorites
+        const acl=new Parse.ACL(parseUser);
+        acl.setPublicReadAccess(false);
+        obj.setACL(acl);
+      }
+      obj.set("teams",newFavs.teams);
+      obj.set("players",newFavs.players);
+      await obj.save();
+    } catch(e){ console.warn("saveFavorites:",e); }
+  };
+
+  // ── Toggle favorite ───────────────────────────────────────────────────────
+  const toggleFav=(type,id)=>{
+    if(!user){setShowLogin(true);return;}
+    setFavorites(f=>{
+      const key=type+"s";
+      const updated={...f,[key]:f[key].includes(id)?f[key].filter(x=>x!==id):[...f[key],id]};
+      saveFavorites(updated,user.parseUser);
+      return updated;
+    });
+  };
+
+  // ── Login handler ─────────────────────────────────────────────────────────
+  const handleLogin=(u)=>{
+    setUser(u);
+    setShowLogin(false);
+    loadFavorites(u.parseUser);
+  };
+
+  // ── Logout ────────────────────────────────────────────────────────────────
+  const handleLogout=async()=>{
+    await Parse.User.logOut();
+    setUser(null);
+    setFavorites({teams:[],players:[]});
+  };
+
+  const handleSearch=r=>{
+    if(r.type==="player"){setActivePlayer(r.item);setPage("players");}
+    else setPage("standings");
+  };
+
+  const NAV=[
+    {id:"scores",label:"Scores",icon:"⚡"},
+    {id:"players",label:"Players",icon:"🏅"},
+    {id:"standings",label:"Standings",icon:"📊"},
+    {id:"favorites",label:"Favorites",icon:"★"},
+  ];
+
+  const favCount=favorites.teams.length+favorites.players.length;
+
+  // If a player is selected, show their full profile
+  if(activePlayer&&page==="players"){
+    return (
+      <div style={{minHeight:"100vh",background:C.bg,fontFamily:FONTS.body}}>
+        <div style={{background:`${C.bg}f0`,backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}`,padding:"10px 20px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:200}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18}}>🏆</span><span style={{fontSize:16,fontWeight:900,color:"#fff",fontFamily:FONTS.cond,letterSpacing:".5px"}}>FIELDR</span></div>
+          <Search onSelect={handleSearch}/>
+          <div style={{marginLeft:"auto"}}>
+            {user?<div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:30,height:30,borderRadius:"50%",background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{user.name[0].toUpperCase()}</div><span style={{fontSize:13,color:C.text,fontWeight:600}}>{user.name}</span><button onClick={handleLogout} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:FONTS.body}}>Out</button></div>
+            :<button onClick={()=>setShowLogin(true)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:7,padding:"7px 15px",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:FONTS.body}}>Sign In</button>}
+          </div>
+        </div>
+        <PlayerProfile player={activePlayer} onBack={()=>setActivePlayer(null)} favorites={favorites} toggleFav={toggleFav}/>
+        {showLogin&&<LoginModal onLogin={handleLogin} onClose={()=>setShowLogin(false)}/>}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:FONTS.body}}>
+      {/* Header */}
+      <header style={{position:"sticky",top:0,zIndex:200,background:`${C.bg}f0`,backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 20px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}><span style={{fontSize:20}}>🏆</span><span style={{fontSize:17,fontWeight:900,color:"#fff",fontFamily:FONTS.cond,letterSpacing:".5px"}}>FIELDR</span></div>
+          <Search onSelect={handleSearch}/>
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+            {user
+              ?<div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:30,height:30,borderRadius:"50%",background:C.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{user.name[0].toUpperCase()}</div>
+                  <span style={{fontSize:13,color:C.text,fontWeight:600}}>{user.name}</span>
+                  <button onClick={handleLogout} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontSize:11,fontFamily:FONTS.body}}>Sign Out</button>
+                </div>
+              :<button onClick={()=>setShowLogin(true)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:7,padding:"7px 15px",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:FONTS.body}}>Sign In</button>
+            }
+          </div>
+        </div>
+        <Ticker games={TODAY_GAMES} onGameClick={g=>setActiveBox(g)}/>
+        <nav style={{display:"flex",padding:"0 20px",background:C.bg,overflowX:"auto",scrollbarWidth:"none"}}>
+          {NAV.map(n=>(
+            <button key={n.id} onClick={()=>{setPage(n.id);setActivePlayer(null);}} style={{display:"flex",alignItems:"center",gap:5,padding:"10px 14px",border:"none",background:"none",color:page===n.id?"#fff":C.muted,fontSize:13,fontWeight:page===n.id?700:400,cursor:"pointer",borderBottom:page===n.id?`2px solid ${C.accent}`:"2px solid transparent",transition:"all .14s",fontFamily:FONTS.body,whiteSpace:"nowrap"}}>
+              {n.icon} {n.label}
+              {n.id==="favorites"&&favCount>0&&<span style={{background:C.accent,borderRadius:9,padding:"0 5px",fontSize:9,fontWeight:700,color:"#fff",marginLeft:2}}>{favCount}</span>}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main style={{maxWidth:1200,margin:"0 auto",padding:"20px"}} className="fade" key={page}>
+        {page==="scores"&&(
+          <div>
+            <div style={{fontSize:10,fontWeight:800,color:C.muted,letterSpacing:1.5,fontFamily:FONTS.cond,marginBottom:14}}>WED · MARCH 11, 2026 · NBA</div>
+            <ScoresPage games={TODAY_GAMES} onGameClick={g=>setActiveBox(g)}/>
+          </div>
+        )}
+        {page==="players"&&<PlayersPage onSelect={p=>{setActivePlayer(p);}} favorites={favorites} toggleFav={toggleFav}/>}
+        {page==="standings"&&<StandingsPage favorites={favorites} toggleFav={toggleFav}/>}
+        {page==="favorites"&&(
+          <div>
+            {!user?(
+              <div style={{textAlign:"center",padding:"60px 20px"}}>
+                <div style={{fontSize:44,marginBottom:12}}>★</div>
+                <h2 style={{fontSize:20,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:8}}>Sign in to save favorites</h2>
+                <p style={{fontSize:13,color:C.muted,marginBottom:22}}>Follow teams and players for personalized updates</p>
+                <button onClick={()=>setShowLogin(true)} style={{background:C.accent,border:"none",color:"#fff",borderRadius:9,padding:"11px 26px",cursor:"pointer",fontSize:14,fontWeight:700,fontFamily:FONTS.body}}>Sign In / Create Account</button>
+              </div>
+            ):(
+              <div>
+                <h2 style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:FONTS.cond,marginBottom:18}}>Your Favorites</h2>
+                {favorites.teams.length>0&&(
+                  <div style={{marginBottom:22}}>
+                    <div style={{fontSize:10,fontWeight:800,color:C.muted,letterSpacing:1.5,fontFamily:FONTS.cond,marginBottom:10}}>TEAMS</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+                      {NBA_TEAMS.filter(t=>favorites.teams.includes(t.abv)).map((t,i)=>(
+                        <div key={i} style={{background:C.s2,border:"1px solid #f0b42933",borderRadius:11,padding:"13px 14px",display:"flex",alignItems:"center",gap:10}}>
+                          <Logo abv={t.abv} size={38}/><div><div style={{fontSize:13,fontWeight:700,color:"#fff",fontFamily:FONTS.cond}}>{t.name}</div><div style={{fontSize:12,fontWeight:700,color:C.text,marginTop:3,fontFamily:FONTS.cond}}>{t.w}-{t.l} · {t.pct}</div></div>
+                          <button onClick={()=>toggleFav("team",t.abv)} style={{marginLeft:"auto",background:"none",border:"none",color:C.gold,cursor:"pointer",fontSize:16}}>★</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {favorites.players.length>0&&(
+                  <div>
+                    <div style={{fontSize:10,fontWeight:800,color:C.muted,letterSpacing:1.5,fontFamily:FONTS.cond,marginBottom:10}}>PLAYERS</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10}}>
+                      {PLAYERS.filter(p=>favorites.players.includes(p.id)).map((p,i)=>(
+                        <div key={i} style={{background:C.s2,border:"1px solid #f0b42933",borderRadius:11,padding:"13px 14px",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>{setActivePlayer(p);setPage("players");}}>
+                          <div style={{width:42,height:42,borderRadius:11,background:TC[p.team]||"#333",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",fontFamily:FONTS.cond}}>{p.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div>
+                          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#fff",fontFamily:FONTS.cond}}>{p.name}</div><div style={{fontSize:11,color:C.muted}}>{p.teamName}</div><div style={{fontSize:12,fontWeight:600,color:C.text,marginTop:3,fontFamily:FONTS.cond}}>{p.pts} PTS · {p.reb} REB · {p.ast} AST</div></div>
+                          <button onClick={e=>{e.stopPropagation();toggleFav("player",p.id);}} style={{background:"none",border:"none",color:C.gold,cursor:"pointer",fontSize:16}}>★</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {favCount===0&&<div style={{textAlign:"center",padding:40,color:C.muted}}><div style={{fontSize:36,marginBottom:10}}>☆</div><p>No favorites yet — star teams and players to follow them</p></div>}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {activeBox&&<BoxModal game={activeBox} onClose={()=>setActiveBox(null)}/>}
+      {showLogin&&<LoginModal onLogin={handleLogin} onClose={()=>setShowLogin(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
