@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body>
+<div id="log" style="font-family:monospace;padding:20px;color:white;background:#07090f;min-height:100vh;font-size:13px;line-height:1.8"></div>
+<script>
+const log=(msg,color="#c8d4ee")=>{const d=document.getElementById("log");const p=document.createElement("p");p.style.color=color;p.style.margin="2px 0";p.textContent=msg;d.appendChild(p);};
+const KEY="90de8b56-4920-4e8f-a66f-06b2a11c5b89";
+
+log("=== FIELDR API DIAGNOSTICS ===","#f0b429");
+log("Time: "+new Date().toISOString(),"#3e4e70");
+log("Origin: "+window.location.origin,"#3e4e70");
+log("","");
+
+const test=async(name,url,opts={})=>{
+  log("Testing: "+name,"#3d7fff");
+  try{
+    const r=await fetch(url,opts);
+    const text=await r.text();
+    let parsed=null;
+    try{parsed=JSON.parse(text);}catch(e){}
+    if(r.ok){
+      log("  ✓ Status "+r.status,"#1db954");
+      if(parsed&&parsed.data){log("  ✓ data.length = "+parsed.data.length,"#1db954");}
+      else if(parsed){log("  ✓ keys: "+Object.keys(parsed).join(", "),"#1db954");}
+      else{log("  response: "+text.slice(0,100),"#f0b429");}
+    }else{
+      log("  ✗ Status "+r.status+": "+text.slice(0,200),"#e8394a");
+    }
+  }catch(e){
+    log("  ✗ FAILED: "+e.message+" ("+e.constructor.name+")","#e8394a");
+    log("  This usually means CORS or network block","#f5820d");
+  }
+  log("","");
+};
+
+(async()=>{
+  const today=new Date().toISOString().slice(0,10);
+  const lastWeek=new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+
+  await test("Teams (no auth)", "https://api.balldontlie.io/v1/teams");
+  await test("Teams (with auth)", "https://api.balldontlie.io/v1/teams", {headers:{Authorization:KEY}});
+  await test("Players", "https://api.balldontlie.io/v1/players?per_page=5", {headers:{Authorization:KEY}});
+  await test("Games today ("+today+")", "https://api.balldontlie.io/v1/games?dates[]="+today, {headers:{Authorization:KEY}});
+  await test("Games last week ("+lastWeek+")", "https://api.balldontlie.io/v1/games?dates[]="+lastWeek, {headers:{Authorization:KEY}});
+  await test("Standings", "https://api.balldontlie.io/v1/standings?season=2024", {headers:{Authorization:KEY}});
+  await test("Search player 'lebron'", "https://api.balldontlie.io/v1/players?search=lebron", {headers:{Authorization:KEY}});
+  
+  log("=== DONE ===","#f0b429");
+})();
+</script>
+</body></html>
